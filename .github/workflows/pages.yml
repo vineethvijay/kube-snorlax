@@ -6,6 +6,10 @@ on:
       - main
     paths:
       - "docs/**"
+  workflow_run:
+    workflows: ["Release Helm Chart"]
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
