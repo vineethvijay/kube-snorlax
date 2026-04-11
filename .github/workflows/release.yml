@@ -1,0 +1,138 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: true
+        default: "minor"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # Skip if the commit was made by the release workflow itself
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine bump type
+        id: bump
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "type=${{ inputs.bump }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=minor" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Get latest version
+        id: version
+        run: |
+          # Get the latest semver tag, default to v0.0.0 if none exist
+          LATEST=$(git tag -l 'v*' --sort=-v:refname | head -n1)
+          if [[ -z "$LATEST" ]]; then
+            LATEST="v0.0.0"
+          fi
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+
+          # Strip 'v' prefix and split
+          VER="${LATEST#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VER"
+
+          BUMP="${{ steps.bump.outputs.type }}"
+          if [[ "$BUMP" == "major" ]]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif [[ "$BUMP" == "minor" ]]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEW="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "new=$NEW" >> "$GITHUB_OUTPUT"
+          echo "new_bare=${MAJOR}.${MINOR}.${PATCH}" >> "$GITHUB_OUTPUT"
+          echo "Bumping $LATEST → $NEW ($BUMP)"
+
+      - name: Update Chart.yaml version
+        run: |
+          sed -i "s/^version:.*/version: ${{ steps.version.outputs.new_bare }}/" helm/kube-snorlax/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${{ steps.version.outputs.new_bare }}\"/" helm/kube-snorlax/Chart.yaml
+          cat helm/kube-snorlax/Chart.yaml
+
+      - name: Commit version bump
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git add helm/kube-snorlax/Chart.yaml
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore: bump version to ${{ steps.version.outputs.new }} [skip ci]"
+          git push
+
+      - name: Create tag
+        run: |
+          git tag ${{ steps.version.outputs.new }}
+          git push origin ${{ steps.version.outputs.new }}
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          PREV="${{ steps.version.outputs.latest }}"
+          NEW="${{ steps.version.outputs.new }}"
+
+          if [[ "$PREV" == "v0.0.0" ]]; then
+            NOTES="Initial release"
+          else
+            NOTES=$(git log ${PREV}..HEAD~1 --pretty=format:"- %s" --no-merges 2>/dev/null || echo "- Release $NEW")
+          fi
+
+          # Write multiline to output
+          {
+            echo "notes<<EOF"
+            echo "$NOTES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.new }}
+          name: ${{ steps.version.outputs.new }}
+          body: |
+            ## What's Changed
+
+            ${{ steps.notes.outputs.notes }}
+
+            ## Install / Upgrade
+
+            ```bash
+            # Helm
+            helm repo add kube-snorlax https://vineethvijay.github.io/kube-snorlax
+            helm repo update
+            helm upgrade --install kube-snorlax kube-snorlax/kube-snorlax --version ${{ steps.version.outputs.new_bare }}
+
+            # Docker
+            docker pull ghcr.io/vineethvijay/kube-snorlax:${{ steps.version.outputs.new_bare }}
+            ```
+          generate_release_notes: false

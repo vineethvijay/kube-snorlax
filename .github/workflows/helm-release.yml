@@ -49,6 +49,7 @@ jobs:
         with:
           ref: gh-pages
           path: gh-pages-branch
+        continue-on-error: true
 
       - name: Merge docs + chart index
         run: |
