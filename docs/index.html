@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>kube-snorlax — Scale-to-Zero for Kubernetes</title>
+  <meta name="description" content="Sleep idle Kubernetes services on a schedule, wake them instantly when someone visits the URL. A single pod, no CRDs, no sidecars.">
+  <meta property="og:title" content="kube-snorlax — Scale-to-Zero for Kubernetes">
+  <meta property="og:description" content="Sleep idle services, wake them on demand. Save CPU and memory with zero complexity.">
+  <meta property="og:url" content="https://vineethvijay.github.io/kube-snorlax">
+  <meta property="og:type" content="website">
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #161b22;
+      --surface2: #1c2333;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --green: #3fb950;
+      --green-bg: #0d2818;
+      --red: #f85149;
+      --red-bg: #3b1f1f;
+      --blue: #58a6ff;
+      --blue-bg: #0d1d31;
+      --purple: #bc8cff;
+      --purple-bg: #1e1535;
+      --yellow: #d29922;
+      --yellow-bg: #2a1e00;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 80px 0 60px;
+      position: relative;
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+    }
+
+    .snorlax-emoji {
+      font-size: 72px;
+      margin-bottom: 16px;
+      display: block;
+      animation: snore 3s ease-in-out infinite;
+    }
+
+    @keyframes snore {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+    }
+
+    .hero h1 span { color: var(--green); }
+
+    .hero .tagline {
+      font-size: 20px;
+      color: var(--text-muted);
+      max-width: 600px;
+      margin: 0 auto 32px;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--green);
+      color: #000;
+    }
+
+    .btn-primary:hover { background: #4cc764; transform: translateY(-1px); }
+
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover { border-color: var(--text-muted); transform: translateY(-1px); }
+
+    /* Stats bar */
+    .stats {
+      display: flex;
+      justify-content: center;
+      gap: 48px;
+      padding: 40px 0;
+      flex-wrap: wrap;
+    }
+
+    .stat { text-align: center; }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--green);
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Sections */
+    section { padding: 60px 0; }
+
+    section h2 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    section h2 .emoji { margin-right: 8px; }
+
+    section .subtitle {
+      color: var(--text-muted);
+      font-size: 18px;
+      margin-bottom: 40px;
+      max-width: 700px;
+    }
+
+    /* Problem section — before/after */
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 32px;
+    }
+
+    @media (max-width: 700px) {
+      .comparison { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 32px; }
+      .stats { gap: 24px; }
+    }
+
+    .comparison-card {
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid var(--border);
+    }
+
+    .comparison-card.before {
+      background: var(--red-bg);
+      border-color: #f8514933;
+    }
+
+    .comparison-card.after {
+      background: var(--green-bg);
+      border-color: #3fb95033;
+    }
+
+    .comparison-card h3 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .comparison-card.before h3 { color: var(--red); }
+    .comparison-card.after h3 { color: var(--green); }
+
+    .service-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .service-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.03);
+      font-size: 14px;
+    }
+
+    .service-item .icon { font-size: 18px; }
+    .service-item .name { font-weight: 600; flex: 1; }
+    .service-item .usage { color: var(--text-muted); font-size: 13px; }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-running { background: #f8514922; color: var(--red); }
+    .badge-sleeping { background: #3fb95022; color: var(--green); }
+    .badge-awake { background: #58a6ff22; color: var(--blue); }
+
+    /* How it works — flow */
+    .flow {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin-top: 32px;
+      position: relative;
+    }
+
+    .flow::before {
+      content: '';
+      position: absolute;
+      left: 24px;
+      top: 24px;
+      bottom: 24px;
+      width: 2px;
+      background: var(--border);
+    }
+
+    .flow-step {
+      display: flex;
+      gap: 20px;
+      padding: 20px 0;
+      position: relative;
+    }
+
+    .flow-number {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 800;
+      flex-shrink: 0;
+      z-index: 1;
+      border: 2px solid;
+    }
+
+    .flow-step:nth-child(1) .flow-number { background: var(--purple-bg); color: var(--purple); border-color: var(--purple); }
+    .flow-step:nth-child(2) .flow-number { background: var(--blue-bg); color: var(--blue); border-color: var(--blue); }
+    .flow-step:nth-child(3) .flow-number { background: var(--red-bg); color: var(--red); border-color: var(--red); }
+    .flow-step:nth-child(4) .flow-number { background: var(--green-bg); color: var(--green); border-color: var(--green); }
+    .flow-step:nth-child(5) .flow-number { background: var(--yellow-bg); color: var(--yellow); border-color: var(--yellow); }
+    .flow-step:nth-child(6) .flow-number { background: var(--green-bg); color: var(--green); border-color: var(--green); }
+
+    .flow-content h4 { font-size: 16px; margin-bottom: 4px; }
+
+    .flow-content p {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .flow-content code {
+      background: var(--surface2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: var(--blue);
+    }
+
+    /* Animation section */
+    .demo-container {
+      margin-top: 40px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .demo-browser-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .demo-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .demo-dot:nth-child(1) { background: #f85149; }
+    .demo-dot:nth-child(2) { background: #d29922; }
+    .demo-dot:nth-child(3) { background: #3fb950; }
+
+    .demo-url {
+      flex: 1;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-muted);
+      background: var(--bg);
+      padding: 6px 16px;
+      border-radius: 6px;
+      margin-left: 8px;
+    }
+
+    .demo-screen {
+      position: relative;
+      height: 300px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .demo-state {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      opacity: 0;
+      transition: opacity 0.6s ease;
+    }
+
+    .demo-state.active { opacity: 1; }
+    .demo-state h3 { font-size: 24px; }
+    .demo-state p { color: var(--text-muted); font-size: 16px; }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .checkmark {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--green);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      animation: pop 0.3s ease;
+    }
+
+    @keyframes pop {
+      0% { transform: scale(0); }
+      70% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+
+    .demo-timeline {
+      display: flex;
+      justify-content: center;
+      gap: 4px;
+      padding: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .demo-timeline-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background 0.3s;
+    }
+
+    .demo-timeline-dot.active { background: var(--green); }
+
+    /* Install */
+    .install-block {
+      margin-top: 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .install-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .install-tab {
+      padding: 12px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      background: none;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+    }
+
+    .install-tab:hover { color: var(--text); }
+    .install-tab.active { color: var(--green); border-bottom-color: var(--green); }
+
+    .install-content { display: none; padding: 20px; }
+    .install-content.active { display: block; }
+
+    .install-content pre {
+      background: var(--bg);
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 14px;
+      line-height: 1.8;
+      color: var(--text-muted);
+    }
+
+    .install-content pre .cmd { color: var(--green); }
+    .install-content pre .flag { color: var(--blue); }
+    .install-content pre .comment { color: #484f58; }
+
+    /* Compatibility */
+    .compat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 32px;
+    }
+
+    .compat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      transition: border-color 0.2s;
+    }
+
+    .compat-card:hover { border-color: var(--text-muted); }
+    .compat-card .compat-icon { font-size: 28px; margin-bottom: 8px; }
+    .compat-card h4 { font-size: 14px; margin-bottom: 4px; }
+    .compat-card p { font-size: 12px; color: var(--text-muted); }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 60px 0 40px;
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+    }
+
+    footer p { color: var(--text-muted); font-size: 14px; }
+    footer a { color: var(--blue); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* Feature cards */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+    }
+
+    @media (max-width: 700px) {
+      .features { grid-template-columns: 1fr; }
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+    }
+
+    .feature-card .feat-icon { font-size: 28px; margin-bottom: 12px; }
+    .feature-card h4 { font-size: 15px; margin-bottom: 6px; }
+    .feature-card p { font-size: 13px; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+  <!-- Hero -->
+  <div class="container">
+    <div class="hero">
+      <span class="snorlax-emoji">😴</span>
+      <h1>kube-<span>snorlax</span></h1>
+      <p class="tagline">Scale-to-zero with wake-on-request for Kubernetes. Sleep idle services, wake them instantly when someone visits the URL.</p>
+      <div class="hero-buttons">
+        <a href="https://github.com/vineethvijay/kube-snorlax" class="btn btn-primary">
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          View on GitHub
+        </a>
+        <a href="#install" class="btn btn-secondary">Quick Install →</a>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value">~8 vCPUs</div>
+        <div class="stat-label">saved on an 80-service homelab cluster</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">~20 GB</div>
+        <div class="stat-label">RAM reclaimed</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">1 pod</div>
+        <div class="stat-label">25m CPU / 64Mi RAM</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">0</div>
+        <div class="stat-label">CRDs, sidecars, webhooks</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Problem -->
+  <section>
+    <div class="container">
+      <h2><span class="emoji">💸</span> The Problem</h2>
+      <p class="subtitle">Most clusters run dozens of services 24/7, but only a few are actively used at any time. The rest burn resources doing nothing.</p>
+
+      <div class="comparison">
+        <div class="comparison-card before">
+          <h3>❌ Without kube-snorlax</h3>
+          <ul class="service-list">
+            <li class="service-item">
+              <span class="icon">📦</span>
+              <span class="name">grafana</span>
+              <span class="usage">200m / 512Mi</span>
+              <span class="badge badge-running">24/7</span>
+            </li>
+            <li class="service-item">
+              <span class="icon">📦</span>
+              <span class="name">wiki-js</span>
+              <span class="usage">100m / 256Mi</span>
+              <span class="badge badge-running">24/7</span>
+            </li>
+            <li class="service-item">
+              <span class="icon">📦</span>
+              <span class="name">pgadmin</span>
+              <span class="usage">100m / 256Mi</span>
+              <span class="badge badge-running">24/7</span>
+            </li>
+            <li class="service-item">
+              <span class="icon">📦</span>
+              <span class="name">gitea</span>
+              <span class="usage">150m / 384Mi</span>
+              <span class="badge badge-running">24/7</span>
+            </li>
+            <li class="service-item">
+              <span class="icon">📦</span>
+              <span class="name">code-server</span>
+              <span class="usage">250m / 512Mi</span>
+              <span class="badge badge-running">24/7</span>
+            </li>
+            <li class="service-item">
+              <span class="icon">📦</span>
+              <span class="name">+25 more</span>
+              <span class="usage">always running, rarely used</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="comparison-card after">
+          <h3>✅ With kube-snorlax</h3>
+          <ul class="service-list">
+            <li class="service-item">
+              <span class="icon">📦</span>
+              <span class="name">grafana</span>
+              <span class="usage">has alerts — keep on</span>
+              <span class="badge badge-awake">always on</span>
+            </li>
+            <li class="service-item">
+              <span class="icon">😴</span>
+              <span class="name">wiki-js</span>
+              <span class="usage">0m / 0Mi</span>
+              <span class="badge badge-sleeping">sleeping</span>
+            </li>
+            <li class="service-item">
+              <span class="icon">😴</span>
+              <span class="name">pgadmin</span>
+              <span class="usage">0m / 0Mi</span>
+              <span class="badge badge-sleeping">sleeping</span>
+            </li>
+            <li class="service-item">
+              <span class="icon">😴</span>
+              <span class="name">gitea</span>
+              <span class="usage">0m / 0Mi</span>
+              <span class="badge badge-sleeping">sleeping</span>
+            </li>
+            <li class="service-item">
+              <span class="icon">😴</span>
+              <span class="name">code-server</span>
+              <span class="usage">0m / 0Mi</span>
+              <span class="badge badge-sleeping">sleeping</span>
+            </li>
+            <li class="service-item">
+              <span class="icon">😴</span>
+              <span class="name">+25 sleeping</span>
+              <span class="usage">wake on visit</span>
+              <span class="badge badge-sleeping">0 resources</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works — animated demo -->
+  <section>
+    <div class="container">
+      <h2><span class="emoji">⚡</span> How It Works</h2>
+      <p class="subtitle">Two parts: sleeping (scheduled scale-down) and waking (on-demand scale-up). The whole cycle is automatic.</p>
+
+      <div class="demo-container">
+        <div class="demo-browser-bar">
+          <span class="demo-dot"></span>
+          <span class="demo-dot"></span>
+          <span class="demo-dot"></span>
+          <span class="demo-url" id="demo-url">wiki.example.com</span>
+        </div>
+        <div class="demo-screen">
+          <div class="demo-state active" id="state-sleeping">
+            <span style="font-size:48px">😴</span>
+            <h3>wiki-js is sleeping</h3>
+            <p>Scaled to 0 replicas by kube-downscaler<br><span style="color:var(--green)">Saving 100m CPU and 256Mi RAM</span></p>
+          </div>
+          <div class="demo-state" id="state-waking">
+            <div class="spinner"></div>
+            <h3>Waking up wiki-js...</h3>
+            <p>kube-snorlax intercepted the 503, patching replicas → 1<br>Auto-refreshing every 3 seconds</p>
+          </div>
+          <div class="demo-state" id="state-ready">
+            <div class="checkmark">✓</div>
+            <h3>wiki-js is ready!</h3>
+            <p>Pod started in ~20 seconds. Redirecting to the real app.</p>
+          </div>
+        </div>
+        <div class="demo-timeline">
+          <span class="demo-timeline-dot active" id="dot-0"></span>
+          <span class="demo-timeline-dot" id="dot-1"></span>
+          <span class="demo-timeline-dot" id="dot-2"></span>
+        </div>
+      </div>
+
+      <!-- Steps -->
+      <div class="flow">
+        <div class="flow-step">
+          <div class="flow-number">😴</div>
+          <div class="flow-content">
+            <h4>Service goes to sleep</h4>
+            <p><code>kube-downscaler</code> reads the <code>downscaler/uptime</code> annotation. Outside the configured window, it scales replicas to 0. Pod terminates, resources freed.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-number">🌐</div>
+          <div class="flow-content">
+            <h4>User visits the URL</h4>
+            <p>Hours later, someone opens <code>wiki.example.com</code> in their browser. The request hits the ingress controller.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-number">❌</div>
+          <div class="flow-content">
+            <h4>Ingress gets a 503</h4>
+            <p>No endpoints exist (0 replicas). The <code>custom-http-errors: "503"</code> annotation tells NGINX to forward to kube-snorlax.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-number">⚡</div>
+          <div class="flow-content">
+            <h4>kube-snorlax wakes the service</h4>
+            <p>Reads the <code>X-Service-Name</code> header, patches deployment replicas to 1 via the K8s API, and sets a <code>downscaler/last-wakeup</code> timestamp.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-number">⏳</div>
+          <div class="flow-content">
+            <h4>User sees a waking page</h4>
+            <p>A clean, dark-themed loading page with a spinner and auto-refresh every 3 seconds. No browser extensions needed.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-number">✅</div>
+          <div class="flow-content">
+            <h4>Service is ready</h4>
+            <p>Pod starts (~15–60s). Next refresh routes through ingress normally — user lands on the real app. Grace period prevents immediate re-sleep.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section>
+    <div class="container">
+      <h2><span class="emoji">🧩</span> Why kube-snorlax</h2>
+      <div class="features">
+        <div class="feature-card">
+          <div class="feat-icon">🪶</div>
+          <h4>Lightweight</h4>
+          <p>Single pod. ~25m CPU, ~64Mi RAM. Flask + gunicorn. No operator, no CRDs, no sidecars.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feat-icon">🔒</div>
+          <h4>Minimal RBAC</h4>
+          <p>Only needs get + patch on deployments. No cluster-admin, no secrets access.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feat-icon">📦</div>
+          <h4>Helm Chart</h4>
+          <p>Install in one command. Published to GitHub Pages and GHCR as OCI artifact.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feat-icon">🔌</div>
+          <h4>Works with anything</h4>
+          <p>NGINX, Traefik, MetalLB, cloud LBs. EKS, GKE, AKS, k3s, kind, minikube.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feat-icon">🤝</div>
+          <h4>GitOps friendly</h4>
+          <p>Works with ArgoCD and FluxCD. ignoreDifferences pattern for replica conflicts.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feat-icon">⏰</div>
+          <h4>Flexible scheduling</h4>
+          <p>Per-service uptime windows with timezone support. Grace period prevents re-sleep after wake.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Install -->
+  <section id="install">
+    <div class="container">
+      <h2><span class="emoji">🚀</span> Quick Install</h2>
+      <p class="subtitle">Three ways to get started. Pick whichever suits your setup.</p>
+
+      <div class="install-block">
+        <div class="install-tabs">
+          <button class="install-tab active" data-tab="helm">Helm Repo</button>
+          <button class="install-tab" data-tab="oci">OCI</button>
+          <button class="install-tab" data-tab="source">From Source</button>
+        </div>
+        <div class="install-content active" id="tab-helm">
+          <pre><span class="comment"># Add the Helm repo</span>
+<span class="cmd">helm repo add</span> <span class="flag">kube-snorlax</span> https://vineethvijay.github.io/kube-snorlax
+<span class="cmd">helm repo update</span>
+
+<span class="comment"># Install</span>
+<span class="cmd">helm install</span> <span class="flag">kube-snorlax</span> kube-snorlax/kube-snorlax</pre>
+        </div>
+        <div class="install-content" id="tab-oci">
+          <pre><span class="comment"># No repo add needed — pull directly from GHCR</span>
+<span class="cmd">helm install</span> <span class="flag">kube-snorlax</span> oci://ghcr.io/vineethvijay/charts/kube-snorlax <span class="flag">--version</span> 1.0.0</pre>
+        </div>
+        <div class="install-content" id="tab-source">
+          <pre><span class="cmd">git clone</span> https://github.com/vineethvijay/kube-snorlax.git
+<span class="cmd">helm install</span> <span class="flag">kube-snorlax</span> ./kube-snorlax/helm/kube-snorlax</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Compatibility -->
+  <section>
+    <div class="container">
+      <h2><span class="emoji">🔗</span> Works With</h2>
+      <div class="compat-grid">
+        <div class="compat-card">
+          <div class="compat-icon">🌐</div>
+          <h4>NGINX Ingress</h4>
+          <p>Native support via custom-http-errors</p>
+        </div>
+        <div class="compat-card">
+          <div class="compat-icon">🔀</div>
+          <h4>Traefik</h4>
+          <p>Error pages middleware</p>
+        </div>
+        <div class="compat-card">
+          <div class="compat-icon">⚖️</div>
+          <h4>MetalLB</h4>
+          <p>L2 and BGP modes</p>
+        </div>
+        <div class="compat-card">
+          <div class="compat-icon">☁️</div>
+          <h4>Cloud LBs</h4>
+          <p>AWS ALB/NLB, GCP, Azure</p>
+        </div>
+        <div class="compat-card">
+          <div class="compat-icon">📉</div>
+          <h4>kube-downscaler</h4>
+          <p>Schedule-based scale-to-zero</p>
+        </div>
+        <div class="compat-card">
+          <div class="compat-icon">📊</div>
+          <h4>KEDA</h4>
+          <p>Cron trigger for scaling</p>
+        </div>
+        <div class="compat-card">
+          <div class="compat-icon">🔄</div>
+          <h4>ArgoCD / FluxCD</h4>
+          <p>GitOps with ignoreDifferences</p>
+        </div>
+        <div class="compat-card">
+          <div class="compat-icon">☸️</div>
+          <h4>Any Cluster</h4>
+          <p>EKS, GKE, AKS, k3s, kind</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p style="font-size:32px; margin-bottom:12px">😴</p>
+      <p>
+        <strong>kube-snorlax</strong> — named after the Pokémon that sleeps all day and only wakes up when needed.
+      </p>
+      <p style="margin-top:12px">
+        <a href="https://github.com/vineethvijay/kube-snorlax">GitHub</a> ·
+        <a href="https://github.com/vineethvijay/kube-snorlax/issues">Issues</a> ·
+        MIT License
+      </p>
+      <p style="margin-top:8px; font-size:12px">Built by <a href="https://github.com/vineethvijay">Vineeth Vijay</a></p>
+    </div>
+  </footer>
+
+  <script>
+    // Install tabs
+    document.querySelectorAll('.install-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.install-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.install-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    // Demo animation loop
+    const states = ['sleeping', 'waking', 'ready'];
+    const durations = [3000, 3000, 2500];
+    let current = 0;
+
+    function nextState() {
+      states.forEach(s => document.getElementById('state-' + s).classList.remove('active'));
+      document.querySelectorAll('.demo-timeline-dot').forEach(d => d.classList.remove('active'));
+
+      document.getElementById('state-' + states[current]).classList.add('active');
+      document.getElementById('dot-' + current).classList.add('active');
+
+      const next = (current + 1) % states.length;
+      setTimeout(() => {
+        current = next;
+        nextState();
+      }, durations[current]);
+    }
+
+    // Start when visible
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) {
+        nextState();
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.querySelector('.demo-container'));
+  </script>
+</body>
+</html>

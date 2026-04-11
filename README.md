@@ -8,9 +8,7 @@ Most clusters run dozens of services 24/7, but only a fraction are in active use
 
 **kube-snorlax** brings scale-to-zero with wake-on-request to any Kubernetes cluster. Services sleep on a schedule. When someone visits the URL, they wake up instantly. No manual intervention, no lost access. Just fewer wasted resources.
 
-> **Real-world savings**: A dev team cluster with 60 microservices sleeping 30 low-traffic services during off-hours (16h/day) reclaimed **~8 vCPUs and ~20 GB of RAM** — enough to drop a node from the cluster or defer a capacity upgrade.
->
-> Even on a modest homelab (42 services, 25 GB total), sleeping 15 idle services freed ~2 vCPUs and ~5 GB — a 20% reduction in cluster resource usage.
+> **Real-world savings**: On a modest homelab (82 services, 25 GB total), sleeping 15 idle services freed ~2 vCPUs and ~5 GB — a 20% reduction in cluster resource usage.
 
 ## The Problem
 
@@ -111,7 +109,7 @@ flowchart TD
 | **3** | The `custom-http-errors: "503"` annotation tells the ingress to forward the 503 to **kube-snorlax** instead. |
 | **4** | The waker receives the request with `X-Service-Name` header, calls the Kubernetes API to **patch replicas to 1**, and sets a `downscaler/last-wakeup` timestamp annotation. |
 | **5** | The user sees a clean **"waking up..."** page with a spinner that auto-refreshes every 3 seconds. |
-| **6** | Once the pod is ready (~15-60s), the next refresh routes through the ingress normally — the user lands on the real app. |
+| **6** | Once the pod is ready (few seconds), the next refresh routes through the ingress normally — the user lands on the real app. |
 | **Grace** | kube-downscaler sees the `last-wakeup` annotation and respects a configurable grace period before considering the service idle again. |
 
 ## Which Services Should Sleep?
