@@ -1,0 +1,6 @@
+apiVersion: v2
+name: kube-snorlax
+description: Scale-to-zero with wake-on-request for Kubernetes. Sleep idle services, wake them instantly on HTTP access.
+appVersion: "1.0.0"
+version: 1.0.0
+type: application

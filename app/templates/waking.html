@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ service_name }} — Waking Up</title>
+    <meta http-equiv="refresh" content="3;url={{ original_uri }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 2.5rem;
+            max-width: 420px;
+            text-align: center;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+        }
+        .spinner {
+            width: 48px; height: 48px;
+            border: 4px solid #334155;
+            border-top-color: #38bdf8;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 1.5rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        h1 { font-size: 1.25rem; margin-bottom: 0.75rem; color: #f8fafc; }
+        .message { color: #94a3b8; line-height: 1.5; margin-bottom: 1rem; }
+        .meta { font-size: 0.75rem; color: #475569; }
+        .status-error .spinner { border-top-color: #f87171; animation: none; }
+        .status-error h1 { color: #f87171; }
+        .status-ready .spinner { border-top-color: #4ade80; border-color: #4ade80; animation: none; }
+        .status-ready h1 { color: #4ade80; }
+    </style>
+</head>
+<body>
+    <div class="card status-{{ status }}">
+        <div class="spinner"></div>
+        <h1>{{ service_name }}</h1>
+        <p class="message">{{ message }}</p>
+        <p class="meta">
+            {% if status == "waking" %}
+            This page will auto-refresh in 3 seconds.
+            {% elif status == "ready" %}
+            Redirecting now...
+            {% elif status == "error" %}
+            <a href="{{ original_uri }}" style="color: #38bdf8;">Try again</a>
+            {% endif %}
+        </p>
+    </div>
+</body>
+</html>
