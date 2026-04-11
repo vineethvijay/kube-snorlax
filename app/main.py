@@ -1,9 +1,10 @@
 import logging
 import os
 
-from flask import Flask, render_template, request
+from flask import Flask, jsonify, render_template, request
 
-from app.waker import wake_deployment
+from app.state import get_eta
+from app.waker import check_deployment_status, wake_deployment
 
 logging.basicConfig(
     level=logging.INFO,
@@ -58,6 +59,8 @@ def handle_wake(path):
 
     result = wake_deployment(deployment_name, namespace)
 
+    eta_seconds = get_eta(namespace, deployment_name)
+
     return render_template(
         "waking.html",
         service_name=service_name,
@@ -66,7 +69,15 @@ def handle_wake(path):
         original_uri=original_uri,
         status=result["status"],
         message=result["message"],
+        eta_seconds=eta_seconds,
     )
+
+
+@app.route("/api/wake-status/<namespace>/<deployment>")
+def wake_status(namespace, deployment):
+    """Return JSON status of a waking deployment for the countdown UI."""
+    result = check_deployment_status(deployment, namespace)
+    return jsonify(result)
 
 
 if __name__ == "__main__":

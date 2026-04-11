@@ -32,3 +32,8 @@ readinessProbe:
     port: 8080
   initialDelaySeconds: 3
   periodSeconds: 10
+
+persistence:
+  enabled: true
+  size: 64Mi
+  # storageClass: ""

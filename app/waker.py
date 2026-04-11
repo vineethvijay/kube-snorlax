@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 
 from kubernetes import client, config
 
+from app.state import get_eta, get_wake_start, record_wake_complete, record_wake_start
+
 log = logging.getLogger(__name__)
 
 # Track recently woken deployments to avoid spamming the API
@@ -72,10 +74,11 @@ def wake_deployment(name: str, namespace: str) -> dict:
     try:
         apps_v1.patch_namespaced_deployment(name, namespace, patch)
         _recently_woken[key] = now
+        record_wake_start(namespace, name)
         log.info("Scaled up %s to 1 replica (timestamp: %s)", key, timestamp)
         return {
             "status": "waking",
-            "message": f"Waking up {name}... This usually takes 15-60 seconds.",
+            "message": f"Waking up {name}...",
         }
     except client.ApiException as e:
         log.error("Failed to patch deployment %s: %s", key, e)
@@ -83,3 +86,45 @@ def wake_deployment(name: str, namespace: str) -> dict:
             "status": "error",
             "message": f"Failed to wake {name}: {e.reason}",
         }
+
+
+def check_deployment_status(name: str, namespace: str) -> dict:
+    """Check whether a deployment is ready. Records wake duration when complete."""
+    try:
+        deployment = apps_v1.read_namespaced_deployment(name, namespace)
+    except client.ApiException as e:
+        if e.status == 404:
+            return {"status": "error", "message": f"Deployment {name} not found"}
+        raise
+
+    replicas = deployment.spec.replicas or 0
+    ready = (deployment.status.ready_replicas or 0) > 0
+
+    start = get_wake_start(namespace, name)
+    elapsed = None
+    if start:
+        elapsed = round((datetime.now(timezone.utc) - start).total_seconds(), 1)
+
+    eta = get_eta(namespace, name)
+
+    if ready and replicas > 0:
+        duration = record_wake_complete(namespace, name)
+        return {
+            "status": "ready",
+            "elapsed": elapsed,
+            "duration": duration,
+            "eta": eta,
+            "service": name,
+        }
+
+    remaining = None
+    if eta and elapsed is not None:
+        remaining = max(0, round(eta - elapsed, 1))
+
+    return {
+        "status": "waking",
+        "elapsed": elapsed,
+        "eta": eta,
+        "remaining": remaining,
+        "service": name,
+    }

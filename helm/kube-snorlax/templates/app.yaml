@@ -57,6 +57,8 @@ spec:
         app: {{ $name }}
     spec:
       serviceAccountName: {{ $name }}
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: {{ $name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -66,6 +68,11 @@ spec:
           env:
             - name: TARGET_NAMESPACE
               value: {{ .Values.targetNamespace | quote }}
+            - name: DATA_DIR
+              value: "/data"
+          volumeMounts:
+            - name: data
+              mountPath: /data
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           {{- with .Values.livenessProbe }}
@@ -75,6 +82,14 @@ spec:
           {{- with .Values.readinessProbe }}
           readinessProbe:
             {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ $name }}-data
+          {{- else }}
+          emptyDir: {}
           {{- end }}
 ---
 apiVersion: v1
@@ -91,3 +106,21 @@ spec:
     - port: {{ .Values.service.port | default .Values.containerPort }}
       targetPort: {{ .Values.containerPort }}
       name: http
+{{- if .Values.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}-data
+  labels:
+    app: {{ $name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | default "64Mi" }}
+  {{- with .Values.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}

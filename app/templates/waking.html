@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ service_name }} — Waking Up</title>
-    <meta http-equiv="refresh" content="3;url={{ original_uri }}">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -21,6 +20,7 @@
             border-radius: 12px;
             padding: 2.5rem;
             max-width: 420px;
+            width: 90%;
             text-align: center;
             box-shadow: 0 4px 24px rgba(0,0,0,0.3);
         }
@@ -31,31 +31,153 @@
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
             margin: 0 auto 1.5rem;
+            transition: all 0.3s;
+        }
+        .spinner.ready {
+            border-color: #4ade80;
+            border-top-color: #4ade80;
+            animation: none;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        h1 { font-size: 1.25rem; margin-bottom: 0.75rem; color: #f8fafc; }
-        .message { color: #94a3b8; line-height: 1.5; margin-bottom: 1rem; }
+        h1 { font-size: 1.25rem; margin-bottom: 0.75rem; color: #f8fafc; transition: color 0.3s; }
+        .message { color: #94a3b8; line-height: 1.5; margin-bottom: 1.25rem; transition: color 0.3s; }
+        .timer {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 1.25rem;
+        }
+        .timer .item { text-align: center; }
+        .timer .label { display: block; font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
+        .timer .value { font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .timer .elapsed .value { color: #38bdf8; }
+        .timer .eta .value { color: #a78bfa; }
+        .progress-wrap {
+            background: #334155;
+            border-radius: 6px;
+            height: 6px;
+            margin-bottom: 1.25rem;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #38bdf8, #a78bfa);
+            border-radius: 6px;
+            width: 0%;
+            transition: width 1s linear;
+        }
         .meta { font-size: 0.75rem; color: #475569; }
         .status-error .spinner { border-top-color: #f87171; animation: none; }
         .status-error h1 { color: #f87171; }
-        .status-ready .spinner { border-top-color: #4ade80; border-color: #4ade80; animation: none; }
-        .status-ready h1 { color: #4ade80; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
-    <div class="card status-{{ status }}">
-        <div class="spinner"></div>
-        <h1>{{ service_name }}</h1>
-        <p class="message">{{ message }}</p>
-        <p class="meta">
-            {% if status == "waking" %}
-            This page will auto-refresh in 3 seconds.
-            {% elif status == "ready" %}
-            Redirecting now...
-            {% elif status == "error" %}
-            <a href="{{ original_uri }}" style="color: #38bdf8;">Try again</a>
-            {% endif %}
-        </p>
+    <div class="card status-{{ status }}" id="card">
+        <div class="spinner" id="spinner"></div>
+        <h1 id="title">{{ service_name }}</h1>
+        <p class="message" id="message">{{ message }}</p>
+
+        <div class="timer" id="timer">
+            <div class="item elapsed">
+                <span class="label">Elapsed</span>
+                <span class="value" id="elapsed">0s</span>
+            </div>
+            <div class="item eta" id="eta-item">
+                <span class="label">ETA</span>
+                <span class="value" id="eta">—</span>
+            </div>
+        </div>
+
+        <div class="progress-wrap" id="progress-wrap">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+
+        <p class="meta" id="meta">Checking every 2 seconds</p>
     </div>
+
+    <script>
+        var namespace = {{ namespace | tojson }};
+        var deployment = {{ deployment_name | tojson }};
+        var originalUri = {{ original_uri | tojson }};
+        var etaSeconds = {{ eta_seconds | tojson }};
+        var startTime = Date.now();
+
+        var elapsedEl = document.getElementById('elapsed');
+        var etaEl = document.getElementById('eta');
+        var etaItem = document.getElementById('eta-item');
+        var progressFill = document.getElementById('progress-fill');
+        var progressWrap = document.getElementById('progress-wrap');
+        var messageEl = document.getElementById('message');
+        var titleEl = document.getElementById('title');
+        var spinnerEl = document.getElementById('spinner');
+        var timerEl = document.getElementById('timer');
+        var metaEl = document.getElementById('meta');
+        var cardEl = document.getElementById('card');
+
+        if (!etaSeconds) {
+            etaItem.style.opacity = '0.3';
+            progressWrap.style.opacity = '0.3';
+        }
+
+        // Update counters every second
+        setInterval(function() {
+            var elapsed = Math.floor((Date.now() - startTime) / 1000);
+            elapsedEl.textContent = elapsed + 's';
+
+            if (etaSeconds) {
+                var remaining = Math.max(0, Math.round(etaSeconds - elapsed));
+                if (remaining > 0) {
+                    etaEl.textContent = '~' + remaining + 's';
+                } else {
+                    etaEl.textContent = 'any moment';
+                }
+                var pct = Math.min(100, (elapsed / etaSeconds) * 100);
+                progressFill.style.width = pct + '%';
+            } else {
+                etaEl.textContent = 'learning...';
+            }
+        }, 1000);
+
+        function showReady(duration) {
+            spinnerEl.className = 'spinner ready';
+            titleEl.style.color = '#4ade80';
+            var msg = 'Ready!';
+            if (duration) msg += ' Woke up in ' + Math.round(duration) + 's';
+            messageEl.textContent = msg;
+            messageEl.style.color = '#4ade80';
+            timerEl.style.display = 'none';
+            progressFill.style.width = '100%';
+            progressFill.style.background = '#4ade80';
+            metaEl.textContent = 'Redirecting...';
+            setTimeout(function() { window.location.href = originalUri; }, 1500);
+        }
+
+        function poll() {
+            fetch('/api/wake-status/' + encodeURIComponent(namespace) + '/' + encodeURIComponent(deployment))
+                .then(function(r) {
+                    if (!r.ok) throw new Error('not our API');
+                    return r.json();
+                })
+                .then(function(data) {
+                    if (data.status === 'ready') {
+                        showReady(data.duration || data.elapsed);
+                    } else {
+                        if (data.eta && !etaSeconds) {
+                            etaSeconds = data.eta;
+                            etaItem.style.opacity = '1';
+                            progressWrap.style.opacity = '1';
+                        }
+                        setTimeout(poll, 2000);
+                    }
+                })
+                .catch(function() {
+                    // Fetch failed → real service is probably back, redirect
+                    window.location.href = originalUri;
+                });
+        }
+
+        setTimeout(poll, 2000);
+    </script>
 </body>
 </html>
