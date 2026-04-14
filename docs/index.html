@@ -415,6 +415,98 @@
 
     .demo-timeline-dot.active { background: var(--green); }
 
+    /* Demo wake card — mirrors actual waking.html */
+    .demo-wake-card {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 2rem 2.5rem;
+      max-width: 340px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+    }
+
+    .demo-spinner-small {
+      width: 40px; height: 40px;
+      border: 3px solid #334155;
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    .demo-wake-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #f8fafc;
+      margin-bottom: 0.4rem;
+      transition: color 0.3s;
+    }
+
+    .demo-wake-msg {
+      color: #94a3b8;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+      transition: color 0.3s;
+    }
+
+    .demo-wake-timer {
+      display: flex;
+      justify-content: center;
+      gap: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .demo-timer-item { text-align: center; }
+
+    .demo-timer-label {
+      display: block;
+      font-size: 0.65rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.2rem;
+    }
+
+    .demo-timer-value {
+      font-size: 1.3rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .demo-elapsed { color: #38bdf8; }
+    .demo-eta { color: #a78bfa; }
+
+    .demo-progress-wrap {
+      background: #334155;
+      border-radius: 6px;
+      height: 5px;
+      margin-bottom: 0.8rem;
+      overflow: hidden;
+    }
+
+    .demo-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #38bdf8, #a78bfa);
+      border-radius: 6px;
+      width: 0%;
+      transition: width 0.5s linear;
+    }
+
+    .demo-progress-done {
+      width: 100% !important;
+      background: #4ade80 !important;
+    }
+
+    .demo-wake-meta {
+      font-size: 0.7rem;
+      color: #475569;
+    }
+
+    .demo-wake-ready .checkmark {
+      margin: 0 auto 1rem;
+    }
+
     /* Install */
     .install-block {
       margin-top: 32px;
@@ -668,14 +760,36 @@
             <p>Scaled to 0 replicas by kube-downscaler<br><span style="color:var(--green)">Saving 100m CPU and 256Mi RAM</span></p>
           </div>
           <div class="demo-state" id="state-waking">
-            <div class="spinner"></div>
-            <h3>Waking up wiki-js...</h3>
-            <p>kube-snorlax intercepted the 503, patching replicas → 1<br>Auto-refreshing every 3 seconds</p>
+            <div class="demo-wake-card">
+              <div class="demo-spinner-small"></div>
+              <div class="demo-wake-title">wiki-js</div>
+              <div class="demo-wake-msg">Waking up wiki-js...</div>
+              <div class="demo-wake-timer">
+                <div class="demo-timer-item">
+                  <span class="demo-timer-label">Elapsed</span>
+                  <span class="demo-timer-value demo-elapsed" id="demo-elapsed">0s</span>
+                </div>
+                <div class="demo-timer-item">
+                  <span class="demo-timer-label">ETA</span>
+                  <span class="demo-timer-value demo-eta" id="demo-eta">~22s</span>
+                </div>
+              </div>
+              <div class="demo-progress-wrap">
+                <div class="demo-progress-fill" id="demo-progress"></div>
+              </div>
+              <div class="demo-wake-meta">Checking every 2 seconds</div>
+            </div>
           </div>
           <div class="demo-state" id="state-ready">
-            <div class="checkmark">✓</div>
-            <h3>wiki-js is ready!</h3>
-            <p>Pod started in ~20 seconds. Redirecting to the real app.</p>
+            <div class="demo-wake-card demo-wake-ready">
+              <div class="checkmark">✓</div>
+              <div class="demo-wake-title" style="color:var(--green)">wiki-js</div>
+              <div class="demo-wake-msg" style="color:var(--green)">Ready! Woke up in 22s</div>
+              <div class="demo-progress-wrap">
+                <div class="demo-progress-fill demo-progress-done"></div>
+              </div>
+              <div class="demo-wake-meta">Redirecting...</div>
+            </div>
           </div>
         </div>
         <div class="demo-timeline">
@@ -718,8 +832,8 @@
         <div class="flow-step">
           <div class="flow-number">⏳</div>
           <div class="flow-content">
-            <h4>User sees a waking page</h4>
-            <p>A clean, dark-themed loading page with a spinner and auto-refresh every 3 seconds. No browser extensions needed.</p>
+            <h4>User sees a waking page with ETA</h4>
+            <p>A clean loading page with a live elapsed timer, estimated wake time based on that service's history, and a progress bar. No more wondering if something is broken — you see exactly how long it'll take.</p>
           </div>
         </div>
         <div class="flow-step">
@@ -880,29 +994,64 @@
       });
     });
 
-    // Demo animation loop
-    const states = ['sleeping', 'waking', 'ready'];
-    const durations = [3000, 3000, 2500];
-    let current = 0;
+    // Demo animation — simulates the real waking experience
+    const DEMO_ETA = 22;
+    let demoTimer = null;
 
-    function nextState() {
-      states.forEach(s => document.getElementById('state-' + s).classList.remove('active'));
+    function showState(name) {
+      ['sleeping', 'waking', 'ready'].forEach(s => {
+        document.getElementById('state-' + s).classList.remove('active');
+      });
       document.querySelectorAll('.demo-timeline-dot').forEach(d => d.classList.remove('active'));
+      const idx = { sleeping: 0, waking: 1, ready: 2 }[name];
+      document.getElementById('state-' + name).classList.add('active');
+      document.getElementById('dot-' + idx).classList.add('active');
+    }
 
-      document.getElementById('state-' + states[current]).classList.add('active');
-      document.getElementById('dot-' + current).classList.add('active');
+    function resetWakingUI() {
+      document.getElementById('demo-elapsed').textContent = '0s';
+      document.getElementById('demo-eta').textContent = '~' + DEMO_ETA + 's';
+      document.getElementById('demo-progress').style.width = '0%';
+    }
 
-      const next = (current + 1) % states.length;
+    function runDemoCycle() {
+      // Phase 1: Sleeping
+      resetWakingUI();
+      showState('sleeping');
+
       setTimeout(() => {
-        current = next;
-        nextState();
-      }, durations[current]);
+        // Phase 2: Waking — animate elapsed/ETA/progress
+        showState('waking');
+        let elapsed = 0;
+
+        demoTimer = setInterval(() => {
+          elapsed++;
+          document.getElementById('demo-elapsed').textContent = elapsed + 's';
+          const remaining = Math.max(0, DEMO_ETA - elapsed);
+          document.getElementById('demo-eta').textContent = remaining > 0 ? '~' + remaining + 's' : 'any moment';
+          document.getElementById('demo-progress').style.width = Math.min(100, (elapsed / DEMO_ETA) * 100) + '%';
+        }, 400); // Speed up for demo (400ms = ~1 visual second)
+
+        // After simulated wake time, show ready
+        setTimeout(() => {
+          clearInterval(demoTimer);
+          document.getElementById('demo-elapsed').textContent = DEMO_ETA + 's';
+          document.getElementById('demo-progress').style.width = '100%';
+
+          setTimeout(() => {
+            showState('ready');
+
+            // Restart cycle after showing ready
+            setTimeout(runDemoCycle, 2500);
+          }, 600);
+        }, DEMO_ETA * 400);
+      }, 3000);
     }
 
     // Start when visible
     const observer = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting) {
-        nextState();
+        runDemoCycle();
         observer.disconnect();
       }
     });
