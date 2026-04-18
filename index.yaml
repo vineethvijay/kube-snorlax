@@ -2,6 +2,17 @@ apiVersion: v1
 entries:
   kube-snorlax:
   - apiVersion: v2
+    appVersion: 0.4.0
+    created: "2026-04-18T20:40:46.501256296Z"
+    description: Scale-to-zero with wake-on-request for Kubernetes. Sleep idle services,
+      wake them instantly on HTTP access.
+    digest: 16cf95598f772294c1d865beaf4b2de7562fcd2bb8bac4e6b99cbb6d35aabbe4
+    name: kube-snorlax
+    type: application
+    urls:
+    - https://github.com/vineethvijay/kube-snorlax/releases/download/kube-snorlax-0.4.0/kube-snorlax-0.4.0.tgz
+    version: 0.4.0
+  - apiVersion: v2
     appVersion: 0.3.0
     created: "2026-04-14T06:30:48.957450526Z"
     description: Scale-to-zero with wake-on-request for Kubernetes. Sleep idle services,
@@ -23,4 +34,4 @@ entries:
     urls:
     - https://github.com/vineethvijay/kube-snorlax/releases/download/kube-snorlax-0.2.0/kube-snorlax-0.2.0.tgz
     version: 0.2.0
-generated: "2026-04-14T06:30:48.957458041Z"
+generated: "2026-04-18T20:40:46.50126566Z"
