@@ -1,8 +1,30 @@
-# kube-snorlax
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/vineethvijay/kube-snorlax/main/docs/assets/banner-light.svg">
+    <img src="https://raw.githubusercontent.com/vineethvijay/kube-snorlax/main/docs/assets/banner-dark.svg" alt="kube-snorlax" width="700">
+  </picture>
+</p>
 
-> *Named after [Snorlax](https://pokemondb.net/pokedex/snorlax) — the Pokémon that sleeps all day and only wakes up to eat. Your services do the same, except they wake up when someone visits the URL.*
+<p align="center">
+  <em>Named after <a href="https://pokemondb.net/pokedex/snorlax">Snorlax</a> — the Pokémon that sleeps all day and only wakes up to eat.<br>Your services do the same, except they wake up when someone visits the URL.</em>
+</p>
 
-**Stop wasting resources on idle Kubernetes services. Sleep them. Wake them on demand.**
+<p align="center">
+  <a href="https://github.com/vineethvijay/kube-snorlax/actions"><img src="https://img.shields.io/github/actions/workflow/status/vineethvijay/kube-snorlax/release.yml?branch=main&style=for-the-badge&logo=github&label=Build" alt="Build"></a>
+  <a href="https://github.com/vineethvijay/kube-snorlax/releases"><img src="https://img.shields.io/github/v/release/vineethvijay/kube-snorlax?style=for-the-badge&logo=helm&label=Release" alt="Release"></a>
+  <a href="https://github.com/vineethvijay/kube-snorlax/stargazers"><img src="https://img.shields.io/github/stars/vineethvijay/kube-snorlax?style=for-the-badge&logo=github&color=gold" alt="Stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
+</p>
+
+<p align="center">
+  <strong>Stop wasting resources on idle Kubernetes services. Sleep them. Wake them on demand.</strong>
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick Start</a> · <a href="#how-it-works">How It Works</a> · <a href="#configuration">Configuration</a> · <a href="#works-with">Compatibility</a>
+</p>
+
+---
 
 Most clusters run dozens of services 24/7, but only a fraction are in active use at any given time. The rest sit idle, burning CPU and memory that could be freed for workloads that matter — or not provisioned at all.
 
